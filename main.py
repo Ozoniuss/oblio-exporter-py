@@ -1,11 +1,19 @@
+import sys
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.webdriver import WebDriver
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+from selenium.webdriver.support.ui import Select
+
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException
+
 import os
 
 SUSPEND = True
-PROFILE_PATH = r"path-to-firexoz"
 
 
 def suspend():
@@ -16,35 +24,205 @@ def suspend():
             os._exit(1)
 
 
-# Set Firefox options to use the existing profile
-firefox_options = Options()
-firefox_profile = FirefoxProfile(PROFILE_PATH)
-firefox_options.profile = firefox_profile
+def get_login_code() -> str:
+    code = input("what is the 6 digits code? >")
+    return code
 
 
-driver = webdriver.Firefox(options=firefox_options)
+def wait_for_element(driver: WebDriver, by: By, element_identifier, timeout=5):
+    try:
+        element_present = EC.presence_of_element_located((by, element_identifier))
+        WebDriverWait(driver, timeout).until(element_present)
+    except TimeoutException:
+        print(f"timed out waiting for {element_identifier}", file=sys.stderr)
+        return None
+    return driver.find_element(by, element_identifier)
 
-driver.implicitly_wait(0.5)
 
-driver.get("https://www.oblio.eu/account")
-# driver.get("https://www.selenium.dev/selenium/web/web-form.html")
+def init_driver() -> WebDriver:
+    # Set Firefox options to use the existing profile
+    firefox_options = Options()
 
-# title = driver.title
-suspend()
+    profile_path = os.getenv("OBLIO_FIREFOX_PROFILE_PATH")
+    if profile_path not in [None, ""]:
 
-username = driver.find_element(by=By.ID, value="username")
-username.send_keys("")
-suspend()
-password = driver.find_element(by=By.ID, value="password")
-password.send_keys("")
-suspend()
+        print(f"using profile path {profile_path}")
 
-submit_button = driver.find_element(
-    by=By.XPATH,
-    value="""//button[@type="submit" and .//span[contains(text(), "Intra in cont")]]""",
-)
-submit_button.click()
+        firefox_profile = FirefoxProfile(profile_path)
+        firefox_options.profile = firefox_profile
 
+    driver = webdriver.Firefox(options=firefox_options)
+
+    return driver
+
+
+def get_oblio_data(driver: WebDriver):
+
+    wait = WebDriverWait(driver, 2)  # waits up to 10 seconds
+
+    driver.get("https://www.oblio.eu/account")
+
+    try:
+        close_initial_popup_button = wait.until(
+            EC.element_to_be_clickable(
+                (By.CSS_SELECTOR, ".btn.btn-sm.btn-square.btn-outline-warning")
+            )
+        )
+        close_initial_popup_button.click()
+    except TimeoutException:
+        print("starting popup did not show")
+
+    wait = WebDriverWait(driver, 10)
+
+    # Wait for modal-backdrop fade and modal-backdrop show to dissapear because
+    # it's an animation that fucking blocks the button from being clickable.
+    element_to_wait_for = (By.CSS_SELECTOR, ".modal-backdrop.fade")
+    wait.until(EC.invisibility_of_element_located(element_to_wait_for))
+    element_to_wait_for = (By.CSS_SELECTOR, ".modal-backdrop.show")
+    wait.until(EC.invisibility_of_element_located(element_to_wait_for))
+
+    close_initial_popup_button = wait.until(
+        EC.element_to_be_clickable((By.ID, "switch-company-menu"))
+    )
+    close_initial_popup_button.click()
+
+    # Get companies list
+    dropdown_items = wait.until(
+        EC.visibility_of_all_elements_located(
+            (By.CSS_SELECTOR, ".dropdown-item.leave-confirm.comp-list")
+        )
+    )
+
+    dropdown_items[0].click()
+
+    # go to the import/export page for the company
+    driver.get("https://www.oblio.eu/account/import_export")
+
+    export_button = wait.until(
+        EC.element_to_be_clickable(
+            (
+                By.XPATH,
+                "//div[contains(h6, 'e-Facturi Furnizori (XML+PDF)')]/following-sibling::div//button[text()='Exporta']",
+            )
+        )
+    )
+
+    # firefox bug:(
+    # https://stackoverflow.com/questions/44777053/selenium-movetargetoutofboundsexception-with-firefox
+    driver.execute_script("arguments[0].scrollIntoView(true);", export_button)
+    time.sleep(1)
+
+    export_button.click()
+
+    date_selection = wait.until(
+        EC.element_to_be_clickable((By.ID, "daterange-interval-export-efct2"))
+    )
+    date_selection.click()
+
+    calendar_element = wait.until(
+        EC.visibility_of_any_elements_located((By.CLASS_NAME, "drp-calendar.left"))
+    )
+    calendar_div = calendar_element[0]
+
+    # # Select the month if it's not already set to August 2024
+    month_select = Select(calendar_div.find_element(By.CSS_SELECTOR, ".monthselect"))
+
+    if month_select.first_selected_option.text != "August":
+        month_select.select_by_visible_text("August")
+    time.sleep(1)
+
+    # I got an error like the following:
+    # selenium.common.exceptions.StaleElementReferenceException: Message: The element with the reference be055f0a-476f-4363-8e0e-0fe853f7cb4a is stale; either its node document is not the active document, or it is no longer connected to the DOM;
+    # I believe when you change the month the Select item rerenders. Creating it
+    # here fixes it.
+    year_select = Select(calendar_div.find_element(By.CSS_SELECTOR, ".yearselect"))
+    if year_select.first_selected_option.text != "2024":
+        year_select.select_by_value("2024")
+
+    # Wait until the calendar is loaded and available dates are visible
+
+    calendar_table = WebDriverWait(calendar_div, 10).until(
+        EC.visibility_of_element_located((By.CLASS_NAME, "calendar-table"))
+    )
+
+    available_dates = calendar_table.find_elements(
+        By.XPATH, ".//td[contains(@class, 'available')]"
+    )
+    first_date_idx = second_date_idx = None
+
+    # calendar will always contain days from previous and next month. It's okay
+    # to find first 1 and last 1.
+    for idx, date in enumerate(available_dates):
+        print(idx, date.text)
+        if date.text == "1":
+            if first_date_idx is None:
+                first_date_idx = idx
+            else:
+                second_date_idx = idx - 1
+                break
+
+    available_dates[first_date_idx].click()
+
+    calendar_table = WebDriverWait(calendar_div, 10).until(
+        EC.visibility_of_element_located((By.CLASS_NAME, "calendar-table"))
+    )
+
+    available_dates = calendar_table.find_elements(
+        By.XPATH, ".//td[contains(@class, 'available')]"
+    )
+    first_date_idx = second_date_idx = None
+
+    # classes change upon click... :(
+    for idx, date in enumerate(available_dates):
+        print(idx, date.text)
+        if date.text == "1":
+            if first_date_idx is None:
+                first_date_idx = idx
+            else:
+                second_date_idx = idx - 1
+                break
+
+    available_dates[second_date_idx].click()
+
+    suspend()
+
+
+def login(driver: WebDriver):
+
+    oblio_email = os.getenv("OBLIO_EMAIL")
+    oblio_password = os.getenv("OBLIO_PASSWORD")
+
+    if oblio_email in [None, ""] or oblio_password in [None, ""]:
+        print("email or password not set", file=sys.stderr)
+        os._exit(1)
+
+    driver.get("https://www.oblio.eu/account")
+    # driver.get("https://www.selenium.dev/selenium/web/web-form.html")
+
+    # title = driver.title
+    suspend()
+
+    username = driver.find_element(by=By.ID, value="username")
+    username.send_keys("")
+    suspend()
+    password = driver.find_element(by=By.ID, value="password")
+    password.send_keys("")
+    suspend()
+
+    submit_button = driver.find_element(
+        by=By.XPATH,
+        value="""//button[@type="submit" and .//span[contains(text(), "Intra in cont")]]""",
+    )
+    submit_button.click()
+
+    # need an additional check that we get to this page
+    login_code = get_login_code()
+
+
+driver = init_driver()
+print("driver initialized")
+
+get_oblio_data(driver=driver)
 suspend()
 
 # text_box.send_keys("Selenium")
