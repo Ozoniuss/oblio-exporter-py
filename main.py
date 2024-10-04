@@ -197,17 +197,18 @@ def login(driver: WebDriver):
         os._exit(1)
 
     driver.get("https://www.oblio.eu/account")
-    # driver.get("https://www.selenium.dev/selenium/web/web-form.html")
+
+    # sometimes you may be already logged in and don't need to do this
+    if "login" not in driver.current_url:
+        return
 
     # title = driver.title
     suspend()
 
     username = driver.find_element(by=By.ID, value="username")
-    username.send_keys("")
-    suspend()
+    username.send_keys(oblio_email)
     password = driver.find_element(by=By.ID, value="password")
-    password.send_keys("")
-    suspend()
+    password.send_keys(oblio_password)
 
     submit_button = driver.find_element(
         by=By.XPATH,
@@ -218,11 +219,19 @@ def login(driver: WebDriver):
     # need an additional check that we get to this page
     login_code = get_login_code()
 
+    # did not require a code
+    # todo: automatize
+    if login_code == "ok":
+        return
+
 
 driver = init_driver()
 print("driver initialized")
 
-get_oblio_data(driver=driver)
+login(driver=driver)
+print("loogged int")
+
+# get_oblio_data(driver=driver)
 suspend()
 
 # text_box.send_keys("Selenium")
