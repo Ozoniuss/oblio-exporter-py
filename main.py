@@ -56,7 +56,27 @@ def init_driver() -> WebDriver:
     return driver
 
 
+def close_bitwarden(driver: WebDriver):
+    wait = WebDriverWait(driver, 5)
+    try:
+        bitwarder_header = driver.find_element(
+            by=By.XPATH,
+            value="//div//*[contains(text(), 'Should Bitwarden remember this password for you?')]",
+        )
+        close_button = bitwarder_header.find_element(by=By.ID, value="close-button")
+        close_button.click()
+        print("closing bitwarden")
+
+    # No such element
+    except Exception as e:
+        print("skipping bitwarden close")
+        return
+
+
 def get_oblio_data(driver: WebDriver):
+
+    close_bitwarden(driver)
+    suspend()
 
     wait = WebDriverWait(driver, 2)  # waits up to 10 seconds
 
@@ -119,7 +139,13 @@ def get_oblio_data(driver: WebDriver):
     )
     date_selection.click()
 
-    calendar_element = wait.until(
+    big_calendar_frame = driver.find_element(
+        by=By.CLASS_NAME,
+        value="daterangepicker.ltr.show-ranges.show-calendar.openscenter.custom-scroll",
+    )
+    big_calendar_wait = WebDriverWait(big_calendar_frame, 10)
+
+    calendar_element = big_calendar_wait.until(
         EC.visibility_of_any_elements_located((By.CLASS_NAME, "drp-calendar.left"))
     )
     calendar_div = calendar_element[0]
@@ -184,6 +210,23 @@ def get_oblio_data(driver: WebDriver):
 
     available_dates[second_date_idx].click()
 
+    apply_button = big_calendar_wait.until(
+        EC.visibility_of_element_located(
+            (By.XPATH, './/button[contains(text(), "Aplica")]')
+        )
+    )
+    apply_button.click()
+    export_div = wait.until(
+        EC.visibility_of_element_located((By.ID, "modal-export-efct2"))
+    )
+    pdf_radio_button = export_div.find_element(by=By.ID, value="efct2-format1")
+    pdf_radio_button.click()
+
+    export_button = export_div.find_element(
+        by=By.XPATH, value='.//button[contains(text(), "Exporta")]'
+    )
+    export_button.click()
+
     suspend()
 
 
@@ -203,7 +246,6 @@ def login(driver: WebDriver):
         return
 
     # title = driver.title
-    suspend()
 
     username = driver.find_element(by=By.ID, value="username")
     username.send_keys(oblio_email)
@@ -229,9 +271,8 @@ driver = init_driver()
 print("driver initialized")
 
 login(driver=driver)
-print("loogged int")
 
-# get_oblio_data(driver=driver)
+get_oblio_data(driver=driver)
 suspend()
 
 # text_box.send_keys("Selenium")
