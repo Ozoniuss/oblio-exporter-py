@@ -26,6 +26,10 @@ def suspend():
 
 def get_login_code() -> str:
     code = input("what is the 6 digits code? >")
+    if len(code) != 6:
+        return "ok"
+    if not code.isnumeric():
+        return "ok"
     return code
 
 
@@ -265,6 +269,14 @@ def login(driver: WebDriver):
     # todo: automatize
     if login_code == "ok":
         return
+    else:
+        code_form = driver.find_element(by=By.ID, value="email_code")
+        code_form.send_keys(login_code)
+        login_button = driver.find_element(
+            by=By.XPATH,
+            value='//button[@type="button" and .//span[contains(text(), "Intra in cont")]]',
+        )
+        login_button.click()
 
 
 driver = init_driver()
