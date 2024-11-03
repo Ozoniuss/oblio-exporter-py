@@ -1,17 +1,22 @@
 import sys
 import time
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.webdriver import WebDriver
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
 from selenium.webdriver.support.ui import Select
 
+from selenium.webdriver.remote.webelement import WebElement
+
+
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
 import os
+from urllib.request import urlretrieve
 
 SUSPEND = True
 
@@ -80,7 +85,6 @@ def close_bitwarden(driver: WebDriver):
 def get_oblio_data(driver: WebDriver):
 
     close_bitwarden(driver)
-    suspend()
 
     wait = WebDriverWait(driver, 2)  # waits up to 10 seconds
 
@@ -231,7 +235,47 @@ def get_oblio_data(driver: WebDriver):
     )
     export_button.click()
 
+    notifications_div = wait.until(
+        EC.visibility_of_element_located((By.ID, "notifications"))
+    )
+    notifications_div_wait = WebDriverWait(notifications_div, 60)
+    document_link = notifications_div_wait.until(first_document_is_no_longer_loading())
+    document_href = document_link.get_attribute("href")
+
+    urlretrieve(document_href, "a.pdf")
+
     suspend()
+
+
+class first_document_is_no_longer_loading(object):
+    """The document will no longer be loading when it has a link element.
+
+    locator - used to find the element
+    returns the WebElement once it has the particular css class
+    """
+
+    def __call__(self, driver) -> WebElement:
+        try:
+
+            # documents list will refresh once this is done
+            ready_documents_list = driver.find_element(
+                By.CSS_SELECTOR, "div.list-group.list-group-flush.notifications-list"
+            )
+
+            ready_documents = ready_documents_list.find_elements(By.XPATH, "./div")
+            print("found these divs", len(ready_documents))
+            result = ready_documents[0].find_element(
+                by=By.CSS_SELECTOR, value="a.btn.btn-sm.btn-success.px-2.py-1.text-xs"
+            )
+            # result = ready_document.find_element(
+            #     By.XPATH, "//a[descendant::*[contains(text(), 'Descarca')]]"
+            # )
+            return result
+        except NoSuchElementException as e:
+            return False
+        except Exception as e:
+            print("unknown error waiting for document to be ready: ", str(e))
+            return False
 
 
 def login(driver: WebDriver):
