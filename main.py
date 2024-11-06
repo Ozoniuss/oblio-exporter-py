@@ -18,6 +18,16 @@ from selenium.common.exceptions import TimeoutException
 import os
 from urllib.request import urlretrieve
 
+import logging
+
+logger = logging.getLogger("oblio_exporter_py")
+logger.setLevel(logging.DEBUG)
+fh = logging.StreamHandler(sys.stderr)
+fh_formatter = logging.Formatter("[%(levelname)s] %(message)s")
+fh.setFormatter(fh_formatter)
+logger.addHandler(fh)
+
+
 SUSPEND = True
 
 
@@ -43,7 +53,7 @@ def wait_for_element(driver: WebDriver, by: By, element_identifier, timeout=5):
         element_present = EC.presence_of_element_located((by, element_identifier))
         WebDriverWait(driver, timeout).until(element_present)
     except TimeoutException:
-        print(f"timed out waiting for {element_identifier}", file=sys.stderr)
+        logging.error("timed out waiting for %s", element_identifier)
         return None
     return driver.find_element(by, element_identifier)
 
@@ -55,7 +65,7 @@ def init_driver() -> WebDriver:
     profile_path = os.getenv("OBLIO_FIREFOX_PROFILE_PATH")
     if profile_path not in [None, ""]:
 
-        print(f"using profile path {profile_path}")
+        logger.debug("using profile path %s", profile_path)
 
         firefox_profile = FirefoxProfile(profile_path)
         firefox_options.profile = firefox_profile
@@ -74,11 +84,11 @@ def close_bitwarden(driver: WebDriver):
         )
         close_button = bitwarder_header.find_element(by=By.ID, value="close-button")
         close_button.click()
-        print("closing bitwarden")
+        logger.debug("closing bitwarden")
 
     # No such element
     except Exception as e:
-        print("skipping bitwarden close")
+        logger.debug("skipping bitwarden close")
         return
 
 
@@ -98,7 +108,7 @@ def get_oblio_data(driver: WebDriver):
         )
         close_initial_popup_button.click()
     except TimeoutException:
-        print("starting popup did not show")
+        logger.debug("starting popup did not show")
 
     wait = WebDriverWait(driver, 10)
 
@@ -187,7 +197,7 @@ def get_oblio_data(driver: WebDriver):
     # calendar will always contain days from previous and next month. It's okay
     # to find first 1 and last 1.
     for idx, date in enumerate(available_dates):
-        print(idx, date.text)
+        logger.debug("calendar selector %s %s", idx, date.text)
         if date.text == "1":
             if first_date_idx is None:
                 first_date_idx = idx
@@ -208,7 +218,7 @@ def get_oblio_data(driver: WebDriver):
 
     # classes change upon click... :(
     for idx, date in enumerate(available_dates):
-        print(idx, date.text)
+        logger.debug("calendar selector again %s %s", idx, date.text)
         if date.text == "1":
             if first_date_idx is None:
                 first_date_idx = idx
@@ -263,7 +273,7 @@ class first_document_is_no_longer_loading(object):
             )
 
             ready_documents = ready_documents_list.find_elements(By.XPATH, "./div")
-            print("found these divs", len(ready_documents))
+            logger.debug("found these divs %d", len(ready_documents))
             result = ready_documents[0].find_element(
                 by=By.CSS_SELECTOR, value="a.btn.btn-sm.btn-success.px-2.py-1.text-xs"
             )
@@ -274,7 +284,7 @@ class first_document_is_no_longer_loading(object):
         except NoSuchElementException as e:
             return False
         except Exception as e:
-            print("unknown error waiting for document to be ready: ", str(e))
+            logger.error("unknown error waiting for document to be ready: %s", str(e))
             return False
 
 
@@ -284,7 +294,7 @@ def login(driver: WebDriver):
     oblio_password = os.getenv("OBLIO_PASSWORD")
 
     if oblio_email in [None, ""] or oblio_password in [None, ""]:
-        print("email or password not set", file=sys.stderr)
+        logger.error("email or password not set")
         os._exit(1)
 
     driver.get("https://www.oblio.eu/account")
@@ -324,7 +334,7 @@ def login(driver: WebDriver):
 
 
 driver = init_driver()
-print("driver initialized")
+logger.info("driver initialized")
 
 login(driver=driver)
 
