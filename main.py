@@ -88,7 +88,7 @@ def ask_for_period() -> datetime.date:
 
         return period
     except Exception as e:
-        logging.exception("failed to set the period correctly")
+        logger.exception("failed to set the period correctly")
         os._exit(1)
 
 
@@ -97,7 +97,7 @@ def wait_for_element(driver: WebDriver, by: By, element_identifier, timeout=5):
         element_present = EC.presence_of_element_located((by, element_identifier))
         WebDriverWait(driver, timeout).until(element_present)
     except TimeoutException:
-        logging.error("timed out waiting for %s", element_identifier)
+        logger.error("timed out waiting for %s", element_identifier)
         return None
     return driver.find_element(by, element_identifier)
 
@@ -180,7 +180,13 @@ def get_oblio_data(driver: WebDriver):
         )
     )
 
+    company_names = [el.get_attribute("title") for el in dropdown_items]
+    logger.info(
+        "found %d companies: %s", len(company_names), "; ".join(map(str, company_names))
+    )
+
     dropdown_items[0].click()
+    logger.info("exporting data for company %s", company_names[0])
 
     # go to the import/export page for the company
     driver.get("https://www.oblio.eu/account/import_export")
@@ -327,7 +333,9 @@ class first_document_is_no_longer_loading(object):
             )
 
             ready_documents = ready_documents_list.find_elements(By.XPATH, "./div")
-            logger.debug("found these divs %d", len(ready_documents))
+            logger.debug(
+                "polling for loading export (%d available)", len(ready_documents)
+            )
             result = ready_documents[0].find_element(
                 by=By.CSS_SELECTOR, value="a.btn.btn-sm.btn-success.px-2.py-1.text-xs"
             )
