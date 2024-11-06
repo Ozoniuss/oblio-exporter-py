@@ -1,3 +1,4 @@
+import calendar
 import datetime
 import sys
 import time
@@ -52,11 +53,24 @@ def get_previous_month() -> datetime.date:
     year = now.year
     month = now.month - 1
 
-    if month == 0:  # If current month is January
+    if month == 0:
         month = 12
         year -= 1
 
-    return datetime.date(year, month, 1)  # Ret
+    return datetime.date(year, month, 1)
+
+
+def format_company_name(name: str) -> str:
+    parts = name.split(" ")
+    if len(parts) == 1:
+        parts.append("co")
+    return f"{parts[0].lower()}_{parts[1].lower()}"
+
+
+def format_filename(company: str, billing_period: datetime.date, extension: str):
+    prefix = format_company_name(company)
+    number_of_days = calendar.monthrange(billing_period.year, billing_period.month)[1]
+    return f"{prefix}_{billing_period.year}_{billing_period.month}_01__{billing_period.year}_{billing_period.month}_{number_of_days}.{extension}"
 
 
 def suspend():
@@ -312,7 +326,10 @@ def get_oblio_data(driver: WebDriver):
     document_link = notifications_div_wait.until(first_document_is_no_longer_loading())
     document_href = document_link.get_attribute("href")
 
-    urlretrieve(document_href, "a.pdf")
+    output_filename = format_filename(company_names[0], billing_period, "pdf")
+    urlretrieve(document_href, output_filename)
+
+    logger.info("finished downloading file %s", output_filename)
 
     suspend()
 
