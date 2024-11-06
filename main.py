@@ -1,3 +1,4 @@
+import datetime
 import sys
 import time
 from selenium import webdriver
@@ -30,6 +31,33 @@ logger.addHandler(fh)
 
 SUSPEND = True
 
+MONTH_TO_OBLIO_CALENDAR_TEXT = {
+    1: "Ianuarie",
+    2: "Februarie",
+    3: "Martie",
+    4: "Aprilie",
+    5: "Mai",
+    6: "Iunie",
+    7: "Iulie",
+    8: "August",
+    9: "Septembrie",
+    10: "Octombrie",
+    11: "Noiembrie",
+    12: "Decembrie",
+}
+
+
+def get_previous_month() -> datetime.date:
+    now = datetime.datetime.now()
+    year = now.year
+    month = now.month - 1
+
+    if month == 0:  # If current month is January
+        month = 12
+        year -= 1
+
+    return datetime.date(year, month, 1)  # Ret
+
 
 def suspend():
     if SUSPEND:
@@ -46,6 +74,22 @@ def get_login_code() -> str:
     if not code.isnumeric():
         return "ok"
     return code
+
+
+def ask_for_period() -> datetime.date:
+    try:
+        period = get_previous_month()
+        year = input(f"what is the year of the bill? ({period.year}) > ")
+        if year != "":
+            period.year = int(year)
+        month = input(f"what is the month of the bill? ({period.month}) > ")
+        if month != "":
+            period.month = int(month)
+
+        return period
+    except Exception as e:
+        logging.exception("failed to set the period correctly")
+        os._exit(1)
 
 
 def wait_for_element(driver: WebDriver, by: By, element_identifier, timeout=5):
@@ -93,6 +137,11 @@ def close_bitwarden(driver: WebDriver):
 
 
 def get_oblio_data(driver: WebDriver):
+
+    billing_period = ask_for_period()
+    logger.info(
+        "using billing period %d %s", billing_period.year, billing_period.strftime("%b")
+    )
 
     close_bitwarden(driver)
 
@@ -171,8 +220,13 @@ def get_oblio_data(driver: WebDriver):
     # # Select the month if it's not already set to August 2024
     month_select = Select(calendar_div.find_element(By.CSS_SELECTOR, ".monthselect"))
 
-    if month_select.first_selected_option.text != "August":
-        month_select.select_by_visible_text("August")
+    if (
+        month_select.first_selected_option.text
+        != MONTH_TO_OBLIO_CALENDAR_TEXT[billing_period.month]
+    ):
+        month_select.select_by_visible_text(
+            MONTH_TO_OBLIO_CALENDAR_TEXT[billing_period.month]
+        )
     time.sleep(1)
 
     # I got an error like the following:
@@ -180,8 +234,8 @@ def get_oblio_data(driver: WebDriver):
     # I believe when you change the month the Select item rerenders. Creating it
     # here fixes it.
     year_select = Select(calendar_div.find_element(By.CSS_SELECTOR, ".yearselect"))
-    if year_select.first_selected_option.text != "2024":
-        year_select.select_by_value("2024")
+    if year_select.first_selected_option.text != str(billing_period.year):
+        year_select.select_by_value(str(billing_period.year))
 
     # Wait until the calendar is loaded and available dates are visible
 
