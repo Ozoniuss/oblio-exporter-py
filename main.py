@@ -1,5 +1,6 @@
 import calendar
 import datetime
+from re import L
 import sys
 import time
 from selenium import webdriver
@@ -67,7 +68,14 @@ def format_company_name(name: str) -> str:
     return f"{parts[0].lower()}_{parts[1].lower()}"
 
 
-def format_filename(company: str, billing_period: datetime.date, extension: str):
+def format_filename(company: str, billing_period: datetime.date, download_format: str):
+    extension = None
+    if download_format == "pdf":
+        extension = "pdf"
+    elif download_format == "xml":
+        extension = "zip"
+    else:
+        raise Exception("invalid format")
     prefix = format_company_name(company)
     number_of_days = calendar.monthrange(billing_period.year, billing_period.month)[1]
     return f"{prefix}_{billing_period.year}_{billing_period.month}_01__{billing_period.year}_{billing_period.month}_{number_of_days}.{extension}"
@@ -152,58 +160,13 @@ def close_bitwarden(driver: WebDriver):
         return
 
 
-def get_oblio_data(driver: WebDriver):
-
-    billing_period = ask_for_period()
-    logger.info(
-        "using billing period %d %s", billing_period.year, billing_period.strftime("%b")
-    )
-
-    close_bitwarden(driver)
-
-    wait = WebDriverWait(driver, 2)  # waits up to 10 seconds
-
-    driver.get("https://www.oblio.eu/account")
-
-    try:
-        close_initial_popup_button = wait.until(
-            EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, ".btn.btn-sm.btn-square.btn-outline-warning")
-            )
-        )
-        close_initial_popup_button.click()
-    except TimeoutException:
-        logger.debug("starting popup did not show")
-
-    wait = WebDriverWait(driver, 10)
-
-    # Wait for modal-backdrop fade and modal-backdrop show to dissapear because
-    # it's an animation that fucking blocks the button from being clickable.
-    element_to_wait_for = (By.CSS_SELECTOR, ".modal-backdrop.fade")
-    wait.until(EC.invisibility_of_element_located(element_to_wait_for))
-    element_to_wait_for = (By.CSS_SELECTOR, ".modal-backdrop.show")
-    wait.until(EC.invisibility_of_element_located(element_to_wait_for))
-
-    close_initial_popup_button = wait.until(
-        EC.element_to_be_clickable((By.ID, "switch-company-menu"))
-    )
-    close_initial_popup_button.click()
-
-    # Get companies list
-    dropdown_items = wait.until(
-        EC.visibility_of_all_elements_located(
-            (By.CSS_SELECTOR, ".dropdown-item.leave-confirm.comp-list")
-        )
-    )
-
-    company_names = [el.get_attribute("title") for el in dropdown_items]
-    logger.info(
-        "found %d companies: %s", len(company_names), "; ".join(map(str, company_names))
-    )
-
-    dropdown_items[0].click()
-
-    logger.info("exporting data for company %s", company_names[0])
+def download_data_for_current_company(
+    wait: WebDriverWait,
+    company_name: str,
+    billing_period: datetime.date,
+    download_format: str,
+):
+    logger.info("exporting data for company %s", company_name)
 
     # go to the import/export page for the company
     driver.get("https://www.oblio.eu/account/import_export")
@@ -314,8 +277,13 @@ def get_oblio_data(driver: WebDriver):
     export_div = wait.until(
         EC.visibility_of_element_located((By.ID, "modal-export-efct2"))
     )
-    pdf_radio_button = export_div.find_element(by=By.ID, value="efct2-format1")
-    pdf_radio_button.click()
+
+    if download_format == "pdf":
+        pdf_radio_button = export_div.find_element(by=By.ID, value="efct2-format1")
+        pdf_radio_button.click()
+    elif download_format == "xml":
+        xml_radio_button = export_div.find_element(by=By.ID, value="efct2-format2")
+        xml_radio_button.click()
 
     export_button = export_div.find_element(
         by=By.XPATH, value='.//button[contains(text(), "Exporta")]'
@@ -329,12 +297,65 @@ def get_oblio_data(driver: WebDriver):
     document_link = notifications_div_wait.until(first_document_is_no_longer_loading())
     document_href = document_link.get_attribute("href")
 
-    output_filename = format_filename(company_names[0], billing_period, "pdf")
+    output_filename = format_filename(company_name, billing_period, download_format)
     urlretrieve(document_href, output_filename)
 
     logger.info("finished downloading file %s", output_filename)
 
     suspend()
+
+
+def get_oblio_data(driver: WebDriver):
+
+    billing_period = ask_for_period()
+    logger.info(
+        "using billing period %d %s", billing_period.year, billing_period.strftime("%b")
+    )
+
+    close_bitwarden(driver)
+
+    wait = WebDriverWait(driver, 2)  # waits up to 10 seconds
+
+    driver.get("https://www.oblio.eu/account")
+
+    try:
+        close_initial_popup_button = wait.until(
+            EC.element_to_be_clickable(
+                (By.CSS_SELECTOR, ".btn.btn-sm.btn-square.btn-outline-warning")
+            )
+        )
+        close_initial_popup_button.click()
+    except TimeoutException:
+        logger.debug("starting popup did not show")
+
+    wait = WebDriverWait(driver, 10)
+
+    # Wait for modal-backdrop fade and modal-backdrop show to dissapear because
+    # it's an animation that fucking blocks the button from being clickable.
+    element_to_wait_for = (By.CSS_SELECTOR, ".modal-backdrop.fade")
+    wait.until(EC.invisibility_of_element_located(element_to_wait_for))
+    element_to_wait_for = (By.CSS_SELECTOR, ".modal-backdrop.show")
+    wait.until(EC.invisibility_of_element_located(element_to_wait_for))
+
+    close_initial_popup_button = wait.until(
+        EC.element_to_be_clickable((By.ID, "switch-company-menu"))
+    )
+    close_initial_popup_button.click()
+
+    # Get companies list
+    dropdown_items = wait.until(
+        EC.visibility_of_all_elements_located(
+            (By.CSS_SELECTOR, ".dropdown-item.leave-confirm.comp-list")
+        )
+    )
+
+    company_names = [el.get_attribute("title") for el in dropdown_items]
+    logger.info(
+        "found %d companies: %s", len(company_names), "; ".join(map(str, company_names))
+    )
+
+    dropdown_items[0].click()
+    download_data_for_current_company(wait, company_names[0], billing_period, "xml")
 
 
 class first_document_is_no_longer_loading(object):
