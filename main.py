@@ -356,6 +356,7 @@ def get_oblio_data(driver: WebDriver):
 
     dropdown_items[0].click()
     download_data_for_current_company(wait, company_names[0], billing_period, "xml")
+    download_data_for_current_company(wait, company_names[0], billing_period, "pdf")
 
 
 class first_document_is_no_longer_loading(object):
