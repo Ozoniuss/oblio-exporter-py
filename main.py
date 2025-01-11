@@ -93,14 +93,16 @@ def get_login_code() -> str:
 def ask_for_period() -> datetime.date:
     try:
         period = get_previous_month()
+        cyear = period.year
+        cmonth = period.month
         year = input(f"what is the year of the bill? ({period.year}) > ")
         if year != "":
-            period.year = int(year)
+            cyear = int(year)
         month = input(f"what is the month of the bill? ({period.month}) > ")
         if month != "":
-            period.month = int(month)
+            cmonth = int(month)
 
-        return period
+        return datetime.date(cyear, cmonth, 1)
     except Exception as e:
         logger.exception("failed to set the period correctly")
         os._exit(1)
@@ -136,7 +138,7 @@ def init_driver() -> WebDriver:
 def close_bitwarden(driver: WebDriver):
     wait = WebDriverWait(driver, 5)
     try:
-        bitwarder_header = driver.find_element(
+        bitwarder_header = wait.find_element(
             by=By.XPATH,
             value="//div//*[contains(text(), 'Should Bitwarden remember this password for you?')]",
         )
@@ -200,6 +202,7 @@ def get_oblio_data(driver: WebDriver):
     )
 
     dropdown_items[0].click()
+
     logger.info("exporting data for company %s", company_names[0])
 
     # go to the import/export page for the company
@@ -419,13 +422,5 @@ login(driver=driver)
 
 get_oblio_data(driver=driver)
 suspend()
-
-# text_box.send_keys("Selenium")
-# submit_button.click()
-
-# message = driver.find_element(by=By.ID, value="message")
-# text = message.text
-
-# suspend()
 
 driver.quit()
