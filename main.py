@@ -319,12 +319,12 @@ def get_oblio_data(driver: WebDriver):
     driver.get("https://www.oblio.eu/account")
 
     try:
-        close_initial_popup_button = wait.until(
+        companies_list = wait.until(
             EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, ".btn.btn-sm.btn-square.btn-outline-warning")
             )
         )
-        close_initial_popup_button.click()
+        companies_list.click()
     except TimeoutException:
         logger.debug("starting popup did not show")
 
@@ -337,26 +337,38 @@ def get_oblio_data(driver: WebDriver):
     element_to_wait_for = (By.CSS_SELECTOR, ".modal-backdrop.show")
     wait.until(EC.invisibility_of_element_located(element_to_wait_for))
 
-    close_initial_popup_button = wait.until(
-        EC.element_to_be_clickable((By.ID, "switch-company-menu"))
-    )
-    close_initial_popup_button.click()
-
-    # Get companies list
-    dropdown_items = wait.until(
-        EC.visibility_of_all_elements_located(
-            (By.CSS_SELECTOR, ".dropdown-item.leave-confirm.comp-list")
+    current_company_idx = 0
+    while True:
+        companies_list = wait.until(
+            EC.element_to_be_clickable((By.ID, "switch-company-menu"))
         )
-    )
+        companies_list.click()
 
-    company_names = [el.get_attribute("title") for el in dropdown_items]
-    logger.info(
-        "found %d companies: %s", len(company_names), "; ".join(map(str, company_names))
-    )
+        # Get companies list
+        dropdown_items = wait.until(
+            EC.visibility_of_all_elements_located(
+                (By.CSS_SELECTOR, ".dropdown-item.leave-confirm.comp-list")
+            )
+        )
+        if current_company_idx >= len(dropdown_items):
+            logger.info("finished downloading all companies")
+            break
 
-    dropdown_items[0].click()
-    download_data_for_current_company(wait, company_names[0], billing_period, "xml")
-    download_data_for_current_company(wait, company_names[0], billing_period, "pdf")
+        company_names = [el.get_attribute("title") for el in dropdown_items]
+        logger.info(
+            "found %d companies: %s",
+            len(company_names),
+            "; ".join(map(str, company_names)),
+        )
+
+        dropdown_items[current_company_idx].click()
+        download_data_for_current_company(
+            wait, company_names[current_company_idx], billing_period, "xml"
+        )
+        download_data_for_current_company(
+            wait, company_names[current_company_idx], billing_period, "pdf"
+        )
+        current_company_idx += 1
 
 
 class first_document_is_no_longer_loading(object):
