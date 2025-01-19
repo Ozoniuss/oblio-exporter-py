@@ -1,7 +1,7 @@
 from math import fabs
 import os
 from b2sdk.v2 import InMemoryAccountInfo, B2Api, AuthInfoCache, Bucket
-from b2sdk._internal.exception import FileNotPresent
+from b2sdk._internal.exception import FileNotPresent, B2Error, InvalidAuthToken
 
 from downloads import DOWNLOADS_DIRECTORY
 from loglib import logger
@@ -13,10 +13,11 @@ def connect_to_backblaze(account_id, app_key) -> B2Api:
         b2_api = B2Api(info, cache=AuthInfoCache(info))
         b2_api.authorize_account("production", account_id, app_key)
         return b2_api
-    except Exception as e:
-        logger.error(
-            f"Unable to connect to Backblaze. Ensure credentials are set correctly."
-        )
+    except InvalidAuthToken as e:
+        logger.error("Invalid credentials provided.")
+        raise e
+    except B2Error as e:
+        logger.error(f"Unable to connect to Backblaze.")
         raise e
 
 
@@ -26,8 +27,6 @@ def check_if_file_exists(bucket: Bucket, filename: str) -> bool:
         return True
     except FileNotPresent:
         return False
-    except Exception as e:  # is this necessary?
-        raise e
 
 
 def upload_files(bucket: Bucket, fpath: str):
@@ -65,11 +64,15 @@ def upload_files(dirname: str):
                     file_name=filename,
                 )
                 logger.info("successfully uploaded file %s", fpath)
-            except Exception as e:
+            except B2Error as e:
                 logger.exception(f"could not upload file: {e}")
 
-    except Exception as e:
-        logger.error(f"An error occurred: {e}")
+    except B2Error as e:
+        logger.error(f"A backblaze error occurred: {e}")
+        raise e
+
+    except OSError as e:
+        logger.error(f"An OS error occured: {e}")
         raise e
 
 
