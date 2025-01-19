@@ -1,4 +1,5 @@
 import datetime
+import os
 import sys
 
 from loglib import logger
@@ -21,12 +22,20 @@ def ask_for_period() -> datetime.date:
         period = get_previous_month_as_date()
         cyear = period.year
         cmonth = period.month
-        year = input(f"what is the year of the bill? ({period.year}) > ")
-        if year != "":
-            cyear = int(year)
-        month = input(f"what is the month of the bill? ({period.month}) > ")
-        if month != "":
-            cmonth = int(month)
+
+        billing_period = os.getenv("BILLING_PERIOD")
+        if "," in billing_period:
+            logger.debug("billing period set via env var %s", billing_period)
+            parts = billing_period.split(",")
+            cyear = int(parts[0])
+            cmonth = int(parts[1])
+        else:
+            year = input(f"what is the year of the bill? ({period.year}) > ")
+            if year != "":
+                cyear = int(year)
+            month = input(f"what is the month of the bill? ({period.month}) > ")
+            if month != "":
+                cmonth = int(month)
 
         return datetime.date(cyear, cmonth, 1)
     except ValueError:
