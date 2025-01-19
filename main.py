@@ -21,6 +21,7 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from timelib import MONTH_TO_OBLIO_CALENDAR_TEXT, get_previous_month_as_date
 from loglib import logger
 from bitwarden import close_bitwarden
+from userinput import ask_for_period, get_login_code
 
 import os
 from urllib.request import urlretrieve
@@ -55,33 +56,6 @@ def suspend():
             input("press anything to continue...")
         except:  # capture everything including ctrl C
             os._exit(1)
-
-
-def get_login_code() -> str:
-    code = input("what is the 6 digits code? >")
-    if len(code) != 6:
-        return "ok"
-    if not code.isnumeric():
-        return "ok"
-    return code
-
-
-def ask_for_period() -> datetime.date:
-    try:
-        period = get_previous_month_as_date()
-        cyear = period.year
-        cmonth = period.month
-        year = input(f"what is the year of the bill? ({period.year}) > ")
-        if year != "":
-            cyear = int(year)
-        month = input(f"what is the month of the bill? ({period.month}) > ")
-        if month != "":
-            cmonth = int(month)
-
-        return datetime.date(cyear, cmonth, 1)
-    except Exception as e:
-        logger.exception("failed to set the period correctly")
-        os._exit(1)
 
 
 def wait_for_element(driver: WebDriver, by: By, element_identifier, timeout=5):
