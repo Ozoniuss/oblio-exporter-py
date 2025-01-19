@@ -18,8 +18,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, WebDriverException
 
+from downloads import DOWNLOADS_DIRECTORY
 from timelib import MONTH_TO_OBLIO_CALENDAR_TEXT, get_previous_month_as_date
 from loglib import logger
+from backblaze import upload_files
 from bitwarden import close_bitwarden
 from userinput import ask_for_period, get_login_code
 
@@ -47,7 +49,7 @@ def format_filename(company: str, billing_period: datetime.date, download_format
         raise Exception("invalid format")
     prefix = format_company_name(company)
     number_of_days = calendar.monthrange(billing_period.year, billing_period.month)[1]
-    return f"{prefix}_{billing_period.year}_{billing_period.month}_01__{billing_period.year}_{billing_period.month}_{number_of_days}.{extension}"
+    return f"{prefix}_{billing_period.year % 100}_{billing_period.month}_01__{billing_period.year % 100}_{billing_period.month}_{number_of_days}.{extension}"
 
 
 def suspend():
@@ -91,6 +93,7 @@ def download_data_for_current_company(
     company_name: str,
     billing_period: datetime.date,
     download_format: str,
+    download_directory: str,
 ):
     logger.info("exporting data for company %s", company_name)
 
@@ -224,7 +227,7 @@ def download_data_for_current_company(
     document_href = document_link.get_attribute("href")
 
     output_filename = format_filename(company_name, billing_period, download_format)
-    urlretrieve(document_href, output_filename)
+    urlretrieve(document_href, os.path.join(download_directory, output_filename))
 
     logger.info("finished downloading file %s", output_filename)
 
@@ -233,7 +236,9 @@ def download_data_for_current_company(
     # suspend()
 
 
-def get_oblio_data(driver: WebDriver):
+def download_oblio_data_locally(
+    driver: WebDriver, download_directory: str
+) -> list[str]:
 
     billing_period = ask_for_period()
     logger.info(
@@ -291,10 +296,20 @@ def get_oblio_data(driver: WebDriver):
 
         dropdown_items[current_company_idx].click()
         download_data_for_current_company(
-            driver, wait, company_names[current_company_idx], billing_period, "xml"
+            driver,
+            wait,
+            company_names[current_company_idx],
+            billing_period,
+            "xml",
+            download_directory,
         )
         download_data_for_current_company(
-            driver, wait, company_names[current_company_idx], billing_period, "pdf"
+            driver,
+            wait,
+            company_names[current_company_idx],
+            billing_period,
+            "pdf",
+            download_directory,
         )
         current_company_idx += 1
 
@@ -382,7 +397,10 @@ def main():
         driver = init_driver()
         logger.info("driver initialized")
         login(driver=driver)
-        get_oblio_data(driver=driver)
+        download_oblio_data_locally(
+            driver=driver, download_directory=DOWNLOADS_DIRECTORY
+        )
+        upload_files(DOWNLOADS_DIRECTORY)
 
     except WebDriverException as e:
         logger.error(f"got webdriver error: {e}")
