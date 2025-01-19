@@ -1,8 +1,7 @@
 import calendar
 import datetime
-from re import L
-import sys
 import time
+
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
@@ -18,47 +17,15 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
+from timelib import MONTH_TO_OBLIO_CALENDAR_TEXT, get_previous_month_as_date
+from loglib import logger
+from bitwarden import close_bitwarden
+
 import os
 from urllib.request import urlretrieve
 
-import logging
-
-logger = logging.getLogger("oblio_exporter_py")
-logger.setLevel(logging.DEBUG)
-fh = logging.StreamHandler(sys.stderr)
-fh_formatter = logging.Formatter("[%(levelname)s] %(message)s")
-fh.setFormatter(fh_formatter)
-logger.addHandler(fh)
-
 
 SUSPEND = True
-
-MONTH_TO_OBLIO_CALENDAR_TEXT = {
-    1: "Ianuarie",
-    2: "Februarie",
-    3: "Martie",
-    4: "Aprilie",
-    5: "Mai",
-    6: "Iunie",
-    7: "Iulie",
-    8: "August",
-    9: "Septembrie",
-    10: "Octombrie",
-    11: "Noiembrie",
-    12: "Decembrie",
-}
-
-
-def get_previous_month() -> datetime.date:
-    now = datetime.datetime.now()
-    year = now.year
-    month = now.month - 1
-
-    if month == 0:
-        month = 12
-        year -= 1
-
-    return datetime.date(year, month, 1)
 
 
 def format_company_name(name: str) -> str:
@@ -100,7 +67,7 @@ def get_login_code() -> str:
 
 def ask_for_period() -> datetime.date:
     try:
-        period = get_previous_month()
+        period = get_previous_month_as_date()
         cyear = period.year
         cmonth = period.month
         year = input(f"what is the year of the bill? ({period.year}) > ")
@@ -141,23 +108,6 @@ def init_driver() -> WebDriver:
     driver = webdriver.Firefox(options=firefox_options)
 
     return driver
-
-
-def close_bitwarden(driver: WebDriver):
-    wait = WebDriverWait(driver, 5)
-    try:
-        bitwarder_header = wait.find_element(
-            by=By.XPATH,
-            value="//div//*[contains(text(), 'Should Bitwarden remember this password for you?')]",
-        )
-        close_button = bitwarder_header.find_element(by=By.ID, value="close-button")
-        close_button.click()
-        logger.debug("closing bitwarden")
-
-    # No such element
-    except Exception as e:
-        logger.debug("skipping bitwarden close")
-        return
 
 
 def download_data_for_current_company(
@@ -302,7 +252,9 @@ def download_data_for_current_company(
 
     logger.info("finished downloading file %s", output_filename)
 
-    suspend()
+    time.sleep(1)
+
+    # suspend()
 
 
 def get_oblio_data(driver: WebDriver):
