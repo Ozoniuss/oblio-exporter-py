@@ -1,5 +1,6 @@
 import calendar
 import datetime
+import sys
 import time
 
 from selenium import webdriver
@@ -15,7 +16,7 @@ from selenium.webdriver.remote.webelement import WebElement
 
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
 from timelib import MONTH_TO_OBLIO_CALENDAR_TEXT, get_previous_month_as_date
 from loglib import logger
@@ -111,6 +112,7 @@ def init_driver() -> WebDriver:
 
 
 def download_data_for_current_company(
+    driver: WebDriver,
     wait: WebDriverWait,
     company_name: str,
     billing_period: datetime.date,
@@ -315,10 +317,10 @@ def get_oblio_data(driver: WebDriver):
 
         dropdown_items[current_company_idx].click()
         download_data_for_current_company(
-            wait, company_names[current_company_idx], billing_period, "xml"
+            driver, wait, company_names[current_company_idx], billing_period, "xml"
         )
         download_data_for_current_company(
-            wait, company_names[current_company_idx], billing_period, "pdf"
+            driver, wait, company_names[current_company_idx], billing_period, "pdf"
         )
         current_company_idx += 1
 
@@ -401,12 +403,21 @@ def login(driver: WebDriver):
         login_button.click()
 
 
-driver = init_driver()
-logger.info("driver initialized")
+def main():
+    try:
+        driver = init_driver()
+        logger.info("driver initialized")
+        login(driver=driver)
+        get_oblio_data(driver=driver)
 
-login(driver=driver)
+    except WebDriverException as e:
+        logger.error(f"got webdriver error: {e}")
+    except KeyboardInterrupt:
+        logger.info("exiting program")
 
-get_oblio_data(driver=driver)
-suspend()
+    finally:
+        driver.quit()
 
-driver.quit()
+
+if __name__ == "__main__":
+    main()
