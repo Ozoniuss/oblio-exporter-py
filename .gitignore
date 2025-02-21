@@ -5,4 +5,7 @@
 __pycache__
 *.zip
 *.xml
+*.pdf
 main2.py
+
+./bills/
