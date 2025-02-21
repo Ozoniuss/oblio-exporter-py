@@ -2,6 +2,7 @@ import calendar
 import datetime
 import sys
 import time
+from xmlrpc.client import boolean
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
@@ -70,9 +71,12 @@ def wait_for_element(driver: WebDriver, by: By, element_identifier, timeout=5):
     return driver.find_element(by, element_identifier)
 
 
-def init_driver() -> WebDriver:
+def init_driver(run_headless: bool) -> WebDriver:
     # Set Firefox options to use the existing profile
     firefox_options = Options()
+
+    if run_headless:
+        firefox_options.add_argument("--headless")
 
     profile_path = os.getenv("OBLIO_FIREFOX_PROFILE_PATH")
     if profile_path not in [None, ""]:
@@ -393,14 +397,30 @@ def login(driver: WebDriver):
 
 
 def main():
+    upload_to_b2 = os.getenv("OBLIO_UPLOAD_TO_B2")
+    run_headless = os.getenv("OBLIO_RUN_HEADLESS")
+
+    if upload_to_b2 == "true":
+        upload_to_b2 = True
+        logger.debug("will upload files to b2")
+    else:
+        logger.debug("will only download locally")
+
+    if run_headless == "true":
+        run_headless = True
+        logger.debug("will run in headless mode")
+    else:
+        logger.debug("will not run in headless mode")
+
     try:
-        driver = init_driver()
+        driver = init_driver(run_headless)
         logger.info("driver initialized")
         login(driver=driver)
         download_oblio_data_locally(
             driver=driver, download_directory=DOWNLOADS_DIRECTORY
         )
-        upload_files(DOWNLOADS_DIRECTORY)
+        if upload_to_b2:
+            upload_files(DOWNLOADS_DIRECTORY)
 
     except WebDriverException as e:
         logger.error(f"got webdriver error: {e}")
