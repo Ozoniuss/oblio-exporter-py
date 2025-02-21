@@ -1,3 +1,3 @@
 import os
 
-DOWNLOADS_DIRECTORY = "bills"
+DOWNLOADS_DIRECTORY = "../bills"

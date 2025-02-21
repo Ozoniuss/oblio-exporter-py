@@ -41,6 +41,8 @@ def upload_files(dirname: str):
     application_key = os.getenv("BACKBLAZE_S3_APP_KEY")
     bucket_name = os.getenv("BACKBLAZE_BUCKET_NAME")
 
+    logger.debug(f"api key {application_key}")
+
     try:
         b2_api = connect_to_backblaze(account_id, application_key)
         bucket = b2_api.get_bucket_by_name(bucket_name)
