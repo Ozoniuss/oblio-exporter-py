@@ -1,8 +1,7 @@
 import calendar
 import datetime
-import sys
+import shutil
 import time
-from xmlrpc.client import boolean
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
@@ -27,6 +26,7 @@ from bitwarden import close_bitwarden
 from userinput import ask_for_period, get_login_code
 
 import os
+from pathlib import Path
 from urllib.request import urlretrieve
 
 
@@ -71,25 +71,42 @@ def wait_for_element(driver: WebDriver, by: By, element_identifier, timeout=5):
     return driver.find_element(by, element_identifier)
 
 
-def init_driver(run_headless: bool) -> WebDriver:
-    # Set Firefox options to use the existing profile
-    firefox_options = Options()
+def init_driver(run_headless: bool) -> tuple[WebDriver, str]:
+    try:
+        tmp_profile = None
+        # Set Firefox options to use the existing profile
+        firefox_options = Options()
 
-    if run_headless:
-        firefox_options.add_argument("--headless")
+        if run_headless:
+            firefox_options.add_argument("--headless")
 
-    profile_path = os.getenv("OBLIO_FIREFOX_PROFILE_PATH")
-    if profile_path not in [None, ""]:
+        profile_path = os.getenv("OBLIO_FIREFOX_PROFILE_PATH")
+        if profile_path not in [None, ""]:
 
-        logger.debug("using profile path %s", profile_path)
+            logger.debug("using profile path %s", profile_path)
 
-        firefox_profile = FirefoxProfile(profile_path)
-        firefox_options.profile = firefox_profile
+            firefox_profile = FirefoxProfile(profile_path)
+            firefox_options.profile = firefox_profile
+            tmp_profile = firefox_profile._profile_dir
+            logger.debug(f"creating temp profile {firefox_profile._profile_dir}")
 
-    driver = webdriver.Firefox(options=firefox_options)
 
-    return driver
+        driver = webdriver.Firefox(options=firefox_options)
 
+        return driver
+
+    # avoid buildup of profile copies during debugging
+    except KeyboardInterrupt as e:
+        if tmp_profile:
+            try:
+                to_clean = Path(tmp_profile).parent
+                logger.debug(f"attempting to clean up temporary profile {to_clean}")
+                shutil.rmtree(tmp_profile)
+                os.rmdir(to_clean)
+                logger.debug("temp profile cleaned")
+            except Exception as ex:
+                logger.exception(f"could not delete temp profile: {ex}")
+        raise e
 
 def download_data_for_current_company(
     driver: WebDriver,
@@ -364,9 +381,11 @@ def login(driver: WebDriver):
 
     # sometimes you may be already logged in and don't need to do this
     if "login" not in driver.current_url:
+        logger.info("does not attempt login")
         return
 
     # title = driver.title
+    logger.info("attempting login...")
 
     username = driver.find_element(by=By.ID, value="username")
     username.send_keys(oblio_email)
@@ -410,6 +429,7 @@ def main():
         run_headless = True
         logger.debug("will run in headless mode")
     else:
+        run_headless = False
         logger.debug("will not run in headless mode")
 
     try:
@@ -423,11 +443,12 @@ def main():
             upload_files(DOWNLOADS_DIRECTORY)
 
     except WebDriverException as e:
-        logger.error(f"got webdriver error: {e}")
+        logger.error(f"got webdriver error: {str(e)}")
     except KeyboardInterrupt:
         logger.info("exiting program")
 
     finally:
+        logger.info("closing driver")
         driver.quit()
 
 

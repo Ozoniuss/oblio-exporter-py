@@ -46,7 +46,6 @@ def upload_files(dirname: str):
     try:
         b2_api = connect_to_backblaze(account_id, application_key)
         bucket = b2_api.get_bucket_by_name(bucket_name)
-        print(check_if_file_exists(bucket, "nobil_art_24_11_01__24_11_30.pdf"))
 
         for filename in os.listdir(dirname):
             fpath = os.path.join(dirname, filename)
