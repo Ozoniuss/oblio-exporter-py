@@ -50,7 +50,12 @@ def format_filename(company: str, billing_period: datetime.date, download_format
         raise Exception("invalid format")
     prefix = format_company_name(company)
     number_of_days = calendar.monthrange(billing_period.year, billing_period.month)[1]
-    return f"{prefix}_{billing_period.year % 100}_{billing_period.month}_01__{billing_period.year % 100}_{billing_period.month}_{number_of_days}.{extension}"
+
+    monthstr = str(billing_period.month)
+    if len(monthstr) == 1:
+        monthstr = "0" + monthstr
+
+    return f"{prefix}_{billing_period.year % 100}_{monthstr}_01__{billing_period.year % 100}_{monthstr}_{number_of_days}.{extension}"
 
 
 def suspend():
