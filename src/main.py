@@ -406,21 +406,26 @@ def login(driver: WebDriver):
     )
     submit_button.click()
 
-    # need an additional check that we get to this page
-    login_code = get_login_code()
+    # wait for the element requiring the code to show up.
+    try:
+        logger.info("checking for 6-digit code input")
+        login_code_wait = WebDriverWait(driver, 3)
+        code_form = login_code_wait.until(
+            EC.visibility_of_element_located((By.ID, "email_code"))
+        )
 
-    # did not require a code
-    # todo: automatize
-    if login_code == "ok":
-        return
-    else:
-        code_form = driver.find_element(by=By.ID, value="email_code")
+        # code_form = driver.find_element(by=By.ID, value="email_code")
+        login_code = get_login_code()
+
         code_form.send_keys(login_code)
         login_button = driver.find_element(
             by=By.XPATH,
             value='//button[@type="button" and .//span[contains(text(), "Intra in cont")]]',
         )
         login_button.click()
+
+    except TimeoutException:
+        logger.info("skipping login code")
 
 
 def main():
