@@ -273,9 +273,11 @@ def download_oblio_data_locally(
 
     close_bitwarden(driver)
 
-    wait = WebDriverWait(driver, 2)  # waits up to 10 seconds
+    wait = WebDriverWait(driver, 5)
 
-    driver.get("https://www.oblio.eu/account")
+    # Removing this as it looks like it's no longer necessary? but I know I added
+    # it with a purpose so keeping it as a reference.
+    # driver.get("https://www.oblio.eu/account")
 
     try:
         companies_list = wait.until(
@@ -283,6 +285,7 @@ def download_oblio_data_locally(
                 (By.CSS_SELECTOR, ".btn.btn-sm.btn-square.btn-outline-warning")
             )
         )
+        logger.debug("closing initial companies popup")
         companies_list.click()
     except TimeoutException:
         logger.debug("starting popup did not show")
@@ -428,6 +431,7 @@ def main():
         upload_to_b2 = True
         logger.debug("will upload files to b2")
     else:
+        upload_to_b2 = False
         logger.debug("will only download locally")
 
     if run_headless == "true":
@@ -444,7 +448,7 @@ def main():
         download_oblio_data_locally(
             driver=driver, download_directory=DOWNLOADS_DIRECTORY
         )
-        if upload_to_b2:
+        if upload_to_b2 is True:
             upload_files(DOWNLOADS_DIRECTORY)
 
     except WebDriverException as e:
