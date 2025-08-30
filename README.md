@@ -24,3 +24,7 @@ Then run:
 ```bash
 python3 main.py
 ```
+
+## Demo
+
+[![Watch the video](./assets/thumbnail.png)](https://www.youtube.com/watch?v=tztwMkcjbEo)
