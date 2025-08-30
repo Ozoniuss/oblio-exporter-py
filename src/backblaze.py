@@ -45,6 +45,7 @@ def upload_files(dirname: str):
 
     try:
         b2_api = connect_to_backblaze(account_id, application_key)
+        logger.info("connected to backblaze")
         bucket = b2_api.get_bucket_by_name(bucket_name)
 
         for filename in os.listdir(dirname):
@@ -75,6 +76,8 @@ def upload_files(dirname: str):
     except OSError as e:
         logger.error(f"An OS error occured: {e}")
         raise e
+    
+    logger.info(f"finished uploading")
 
 
 if __name__ == "__main__":
