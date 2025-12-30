@@ -429,8 +429,16 @@ def login(driver: WebDriver):
 
 
 def main():
+    download_bills = os.getenv("OBLIO_DOWNLOAD_BILLS")
     upload_to_b2 = os.getenv("OBLIO_UPLOAD_TO_B2")
     run_headless = os.getenv("OBLIO_RUN_HEADLESS")
+
+    if download_bills == "true":
+        download_bills = True
+        logger.debug("will download bills from oblio")
+    else:
+        download_bills = False
+        logger.debug("will use existing data in bills directory")
 
     if upload_to_b2 == "true":
         upload_to_b2 = True
@@ -446,13 +454,16 @@ def main():
         run_headless = False
         logger.debug("will not run in headless mode")
 
+    driver = None
+
     try:
-        driver = init_driver(run_headless)
-        logger.info("driver initialized")
-        login(driver=driver)
-        download_oblio_data_locally(
-            driver=driver, download_directory=DOWNLOADS_DIRECTORY
-        )
+        if download_bills is True:
+            driver = init_driver(run_headless)
+            logger.info("driver initialized")
+            login(driver=driver)
+            download_oblio_data_locally(
+                driver=driver, download_directory=DOWNLOADS_DIRECTORY
+            )
         if upload_to_b2 is True:
             upload_files(DOWNLOADS_DIRECTORY)
 
@@ -462,8 +473,9 @@ def main():
         logger.info("exiting program")
 
     finally:
-        logger.info("closing driver")
-        driver.quit()
+        if driver:
+            logger.info("closing driver")
+            driver.quit()
 
 
 if __name__ == "__main__":

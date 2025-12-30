@@ -17,6 +17,10 @@ export BILLING_PERIOD=
 export BACKBLAZE_S3_KEY_ID=
 export BACKBLAZE_S3_APP_KEY=
 export BACKBLAZE_BUCKET_NAME=
+# set to "true" to toggle
+export OBLIO_DOWNLOAD_BILLS=
+export OBLIO_UPLOAD_TO_B2=
+export OBLIO_RUN_HEADLESS=
 ```
 
 Then run:
